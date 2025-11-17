@@ -1,6 +1,6 @@
 {
   "name": "commitra",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "An AI-assisted developer intelligence CLI that generates context-rich commit messages, READMEs, and project insights (tech stack, architecture, flow, etc.)",
   "type": "module",
   "bin": {
