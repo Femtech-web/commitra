@@ -1,11 +1,3 @@
-```
-   ____                              _  _
-  / ___| ___   _ __ ___   _ __ ___  (_)| |_  _ __  __ _
- | |    / _ \ | '_ ` _ \ | '_ ` _ \ | || __|| '__|/ _` |
- | |___| (_) || | | | | || | | | | || || |_ | |  | (_| |
-  \____|\___/ |_| |_| |_||_| |_| |_||_| \__||_|   \__,_|
-```
-
 # **Commitra**
 
 ### ⚡ _The Intelligent Commit & Project AI CLI_
@@ -18,7 +10,7 @@
 
 ## 🎥 Demo
 
-[![Commitra Demo](https://img.youtube.com/vi/<ID>/0.jpg)](https://youtu.be/mizHUayTtgo)
+[![Commitra Demo](https://img.youtube.com/vi/mizHUayTtgo/0.jpg)](https://youtu.be/mizHUayTtgo)
 
 ---
 
