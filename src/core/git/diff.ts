@@ -114,6 +114,20 @@ export const buildDiffSnippets = (files: string[], perFileMaxLines = 25, totalMa
 
 export const buildEnhancedDiffContext = (): string => {
   const files = getStagedFiles();
+
+  const LARGE_FILE_THRESHOLD = 200;
+  if (files.length > LARGE_FILE_THRESHOLD) {
+    const summary = getDiffSummary();
+
+    return [
+      "CHANGES SUMMARY (large diff mode):",
+      summary || "(no summary available)",
+      "",
+      `Diff too large (${files.length} files). Detailed snippets were skipped.`,
+      "Only summary is included to avoid performance issues.",
+    ].join("\n");
+  }
+
   const summary = getDiffSummary();
   const snippets = buildDiffSnippets(files);
 
@@ -123,9 +137,17 @@ export const buildEnhancedDiffContext = (): string => {
   if (snippets) final += `CODE CONTEXT:\n${snippets}\n\n`;
 
   if (!final.trim()) {
-    const fallback = execSync("git diff --cached --unified=3", { encoding: "utf8" });
-    final = `FULL DIFF (fallback):\n${fallback}`;
+    try {
+      const fallback = execSync("git diff --cached --unified=3", {
+        encoding: "utf8",
+        maxBuffer: 10 * 1024 * 1024
+      });
+      final = `FULL DIFF (fallback):\n${fallback}`;
+    } catch {
+      final = "Unable to produce diff.";
+    }
   }
 
   return final.trim();
 };
+

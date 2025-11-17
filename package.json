@@ -80,12 +80,12 @@
     "automation",
     "project-analysis"
   ],
-  "homepage": "https://github.com/yourusername/commitra",
+  "homepage": "https://github.com/Femtech-web/commitra",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/commitra.git"
+    "url": "https://github.com/Femtech-web/commitra.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/commitra/issues"
+    "url": "https://github.com/Femtech-web/commitra/issues"
   }
 }

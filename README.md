@@ -1,131 +1,315 @@
-# commitra
+```
+   ____                              _  _
+  / ___| ___   _ __ ___   _ __ ___  (_)| |_  _ __  __ _
+ | |    / _ \ | '_ ` _ \ | '_ ` _ \ | || __|| '__|/ _` |
+ | |___| (_) || | | | | || | | | | || || |_ | |  | (_| |
+  \____|\___/ |_| |_| |_||_| |_| |_||_| \__||_|   \__,_|
+```
 
-Commitra is a command-line interface designed to enhance developer productivity by leveraging AI to generate context-rich commit messages, README files, and insightful project overviews. It analyzes the current repository state, extracts meaningful information from Git diffs, and uses advanced language models to produce concise, informative commit descriptions that align with the project’s conventions.
+# **Commitra**
 
-The tool is built with a modular architecture that separates concerns across distinct folders such as AI integration, configuration management, and output formatting. This design allows developers to extend or replace components—like swapping AI providers or adding new output formats—without affecting the core functionality. Commitra also offers a diagram generation feature that visualizes the project’s structure, making onboarding and documentation faster and more accurate.
+### ⚡ _The Intelligent Commit & Project AI CLI_
 
-By integrating with popular AI SDKs (Anthropic, Groq) and CLI libraries (Commander, Clack), Commitra provides a seamless experience for developers who want to maintain high-quality commit histories and documentation with minimal manual effort. Its lightweight footprint and TypeScript foundation ensure type safety and easy maintenance across diverse development environments.
+[![npm version](https://img.shields.io/npm/v/commitra.svg)](https://www.npmjs.com/package/commitra)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub Repo](https://img.shields.io/github/stars/<YOUR_GITHUB>/commitra?style=social)](https://github.com/Femtech-web/commitra)
 
-## Tech Stack
+---
 
-### Frontend
+## 🎥 Demo
 
-- JavaScript/TypeScript
+[![Commitra Demo](https://img.youtube.com/vi/<ID>/0.jpg)](https://youtu.be/mizHUayTtgo)
 
-### Backend
+---
 
-- Node.js
+## Start in 3 Simple Steps
 
-### UI / Styling
+### **Get a Groq API Key (default provider)**
 
-_None_
+Groq is the default AI engine for Commitra — fast and free to start.
 
-### Blockchain / Web3
+👉 Get your API key here:  
+**https://console.groq.com/keys**
 
-_None_
+---
 
-### Other
+### **Save it to Commitra config**
 
-- CLI
-- AI SDKs (Anthropic, Groq)
-- Commander
-- Clack Prompts
-- Figlet
-- Chalk
-- Fuse.js
-- Ini
-- Toml
+```bash
+commitra config set GROQ_API_KEY=your_key_here
+```
 
-## Features
+(Optional) Set provider explicitly:
 
-### AI-Powered Commit Message Generation
+```bash
+commitra config set provider=groq
+```
 
-Analyzes staged changes and uses AI models to produce concise, context-aware commit messages that follow best practices and project conventions.
+---
 
-**Relevant Files:**
+### **Generate your first AI commit**
 
-- `src/cli/commands/commit.ts`
-- `src/core/ai/ai.ts`
-- `src/core/git/diff.ts`
-- `src/core/prompt/commit.ts`
+```bash
+commitra commit
+```
 
-### README Generation
+Or generate multiple:
 
-Generates a comprehensive README file based on the repository’s metadata, dependencies, and detected architecture, ensuring up-to-date documentation.
+```bash
+commitra commit -g 3
+```
 
-**Relevant Files:**
+---
 
-- `src/cli/commands/readme.ts`
-- `src/core/prompt/readme.ts`
-- `src/core/output/markdown.ts`
+## Also: Use Commitra _inside_ normal Git commits
 
-### Project Diagram Creation
+Once you install Commitra’s Git hook, your commit workflow becomes:
 
-Creates a visual representation of the project structure, highlighting key modules and their relationships to aid onboarding and documentation.
+```bash
+git add .
+git commit
+```
 
-**Relevant Files:**
+Commitra will automatically:
 
-- `src/cli/commands/diagram.ts`
-- `src/core/prompt/diagram.ts`
-- `src/core/output/diagram.ts`
+- Analyze your staged files
+- Generate an AI-powered commit message
+- Insert it into your editor  
+  Perfect if you never want to run `commitra commit` manually again.
 
-### Hook Integration
+### Install the hook:
 
-Provides a hook command to integrate Commitra’s functionality into existing Git workflows or CI pipelines.
+```bash
+commitra hook install
+```
 
-**Relevant Files:**
+### Remove the hook:
 
-- `src/cli/commands/hook.ts`
-- `src/core/git/repo.ts`
+```bash
+commitra hook uninstall
+```
 
-### Configuration Management
+---
 
-Allows users to customize behavior via a configuration file and environment variables, supporting schema validation and defaults.
+## **Features**
 
-**Relevant Files:**
+- **AI-generated commit messages**
+- **Automatic API documentation**
+- **Folder tree visualization**
+- **Architecture Mermaid diagrams**
+- **README generator**
+- **Config system with providers (OpenAI, Groq, Anthropic, Local)**
+- **Git hook integration**
+- Minimal, clean output — no noise
 
-- `src/core/config/manager.ts`
-- `src/core/config/schema.ts`
-- `src/cli/commands/config.ts`
+---
 
-### API Route Detection
+# 📦 Installation
 
-Detects and lists API endpoints within the project, aiding developers in understanding exposed services and generating related documentation.
+```bash
+npm install -g commitra
+```
 
-**Relevant Files:**
+Supports:
 
-- `src/core/detect/apiRoutes.ts`
-- `src/core/detect/detect.ts`
-- `src/cli/commands/api.ts`
+- macOS
+- Linux
+- Windows
+- (Homebrew formula coming soon)
 
-### Output Formatting
+---
 
-Supports multiple output formats (markdown, table, console logs) and includes utilities for logging and diagram rendering.
+## 🧰 Commands Overview
 
-**Relevant Files:**
+### 1. `commit`
 
-- `src/core/output/logger.ts`
-- `src/core/output/markdown.ts`
-- `src/core/output/diagram.ts`
+Generate an AI-powered commit message from staged git changes.
 
-## Dependencies
+```bash
+commitra commit
+```
 
-- **@anthropic-ai/sdk** — SDK for interacting with Anthropic’s AI models, used for generating commit messages and documentation. _(Category: ai)_
-- **@clack/prompts** — Interactive prompt library for building CLI interfaces with user-friendly prompts. _(Category: ui)_
-- **@iarna/toml** — Parser and stringifier for TOML files, used for configuration handling. _(Category: config)_
-- **chalk** — Library for styling terminal string output, used for colored console logs and banners. _(Category: ui)_
-- **cli-table3** — Utility for rendering tables in the terminal, used in API route listings and diagnostics. _(Category: ui)_
-- **commander** — Command-line argument parsing library that powers the CLI command structure. _(Category: framework)_
-- **figlet** — Creates ASCII art banners for the CLI startup screen. _(Category: ui)_
-- **fuse.js** — Fuzzy search library used for quick lookup of commands or API endpoints. _(Category: utility)_
-- **groq-sdk** — SDK for interacting with Groq’s AI models, providing an alternative AI provider. _(Category: ai)_
-- **ini** — Parser for INI configuration files, used for reading legacy config formats. _(Category: config)_
+Options:
+
+```
+--suggest-only       Print suggestion without committing
+-g, --generate <n>   Generate N suggestions
+```
+
+---
+
+### 2. `api`
+
+Generate API documentation from your project structure + code.
+
+```bash
+commitra api
+```
+
+Options:
+
+```
+-o, --output FILE     Output file (default: API_DOCS.md)
+-b, --base-url URL    Optional API base URL
+```
+
+---
+
+### 3. `diagram`
+
+Generate clean architecture diagrams (Mermaid).
+
+```bash
+commitra diagram
+```
+
+Options:
+
+```
+-s, --summarize         Add AI architecture summary
+-o, --output FILE        Save output (default: FLOW.md)
+-d, --depth N            Folder depth scan
+-t, --type flow|sequence|system
+-b, --base-url URL
+```
+
+---
+
+### 4. `readme`
+
+Generate a signature-style README.md.
+
+```bash
+commitra readme
+```
+
+---
+
+### 5. `folder`
+
+Generate a project folder tree.
+
+```bash
+commitra folder
+```
+
+Options:
+
+```
+-d, --depth N          Depth (default 3)
+-o, --output FILE      Output file (default: PROJECT_FOLDER.md)
+```
+
+---
+
+### 6. `config`
+
+Manage Commitra configuration.
+
+#### Get:
+
+```bash
+commitra config get provider
+```
+
+#### Set:
+
+```bash
+commitra config set provider=openai OPENAI_API_KEY=sk-123
+```
+
+---
+
+### 7. `hook`
+
+Manage Git hook integration.
+
+Install:
+
+```bash
+commitra hook install
+```
+
+Uninstall:
+
+```bash
+commitra hook uninstall
+```
+
+---
+
+## Configuration System
+
+Commitra loads configuration from:
+
+1. CLI flags
+2. `~/.commitra` config file
+3. Environment variables
+4. Defaults (Groq)
+
+### Example `~/.commitra`
+
+```
+provider=groq
+GROQ_API_KEY=your_key_here
+model=llama-3-8b
+```
+
+Supported providers:
+
+```
+groq (default)
+openai
+anthropic
+local
+```
+
+---
+
+## **Environment Variables**
+
+> set them using **commitra config set key=value**.
+
+| Variable            | Meaning                                          |
+| ------------------- | ------------------------------------------------ |
+| `OPENAI_API_KEY`    | OpenAI auth                                      |
+| `GROQ_API_KEY`      | Groq auth                                        |
+| `ANTHROPIC_API_KEY` | Anthropic auth                                   |
+| `model`             | LLM provider model                               |
+| `provider`          | Override/set LLM provider                        |
+| `generate`          | Suggestions commit count to generate (default 1) |
+| `timeout`           | Request timeout                                  |
+
+---
+
+## How Commitra Works (Minimal Explanation)
+
+Commitra processes:
+
+- Git staged changes (numstat + diff)
+- File structure
+- Code snippets (truncated)
+- Commit history
+- Environment metadata
+
+Then feeds compact prompts to your AI provider to generate:
+
+- Clean commit messages
+- Diagrams
+- Documentation
+- README templates
+- API summaries
+
+Everything is processed **locally first**, so only optimized summaries go to the model.
+
+---
 
 ## Project Structure
 
 ```text
 ├── .env
-├── README-1.md
+├── LICENSE
+├── README.md
 ├── package.json
 ├── src
 │   ├── cli
@@ -136,6 +320,7 @@ Supports multiple output formats (markdown, table, console logs) and includes ut
 │   │   │   ├── config.ts
 │   │   │   ├── diagram.ts
 │   │   │   ├── hook.ts
+│   │   │   ├── prepare-commit-msg.ts
 │   │   │   ├── project-folder.ts
 │   │   │   ├── readme.ts
 │   │   ├── index.ts
@@ -173,98 +358,76 @@ Supports multiple output formats (markdown, table, console logs) and includes ut
 │   │   │   ├── error.ts
 │   │   │   ├── fs.ts
 │   │   │   ├── helpers.ts
+│   ├── hook-entry.ts
 │   ├── index.ts
+├── tests
+│   ├── mocks
+│   │   ├── mockAI.ts
+│   │   ├── mockFs.ts
+│   │   ├── mockGit.ts
+│   ├── setup.ts
+│   ├── unit
+│   │   ├── commitPrompt.spec.ts
+│   │   ├── config.spec.ts
+│   │   ├── diff.spec.ts
+│   │   ├── helpers.spec.ts
+│   │   ├── projectMetadata.spec.ts
+│   ├── utils
+│   │   ├── findDistDiff.ts
+│   │   ├── fixtureBatch.ts
+│   │   ├── mockDistAI.ts
+│   │   ├── runCli.ts
+│   │   ├── testRepo.ts
 ├── tsconfig.json
-├── tsup.config.ts
+├── vitest-env.d.ts
+├── vitest.config.ts
 ```
-
-## Core Folders
-
-- **src/cli** — Entry point for the command-line interface, including the main index and banner rendering.
-- **src/cli/commands** — Individual CLI command implementations such as commit, readme, diagram, and API route listing.
-- **src/core/ai** — AI integration layer that abstracts provider-specific logic and defines types for AI interactions.
-- **src/core/config** — Configuration management, including schema validation and environment variable handling.
-- **src/core/context** — Contextual data aggregation used by various components to access repository state.
-- **src/core/detect** — Detection utilities for classifying code, extracting metadata, and identifying API routes.
-- **src/core/git** — Git-related helpers for reading diffs, repository information, and commit history.
-- **src/core/output** — Output formatting utilities for diagrams, markdown, and console logging.
-- **src/core/prompt** — Prompt templates for AI interactions, guiding the generation of commit messages, README content, and diagrams.
-- **src/core/utils** — General-purpose utilities such as file system helpers, error handling, and constants.
-
-## API Routes
-
-### `/src/cli/commands/api`
-
-        **Purpose:**
-        CLI command that scans the project for API endpoints and displays them in a formatted table, aiding developers in quickly reviewing exposed routes.
-
-        **Input:**
-        None – operates on the current working directory.
-
-        **Output:**
-        A table listing detected API routes, their HTTP methods, and file locations.
-
-        **File:**
-        `src/cli/commands/api.ts`
-
-        ---
-
-
-        ### `/src/core/prompt/api`
-
-        **Purpose:**
-        Provides prompt templates for AI to generate documentation or explanations related to API routes.
-
-        **Input:**
-        Detected API route data.
-
-        **Output:**
-        Formatted prompt string used by the AI provider.
-
-        **File:**
-        `src/core/prompt/api.ts`
-
-        ---
-
-## Installation
-
-1. Clone the repository: git clone https://github.com/your-org/commitra.git
-2. Navigate into the project directory: cd commitra
-3. Install dependencies: npm install
-4. Create a .env file based on the provided example and set required API keys.
-
-## Development
-
-- Run the TypeScript compiler in watch mode: npx tsup src/index.ts --watch
-- Execute the CLI locally: npx ts-node src/index.ts <command>
-- Use the provided commands to test functionality (e.g., npx ts-node src/index.ts commit).
-
-## Environment Variables
-
-- Not provided
-
-## Testing
-
-- Not provided
-
-## Deployment
-
-- Not provided
-
-## Smart Contracts
-
-### `Not provided`
-
-Not provided
-
-## Libraries & Utilities
-
-- Not provided
-
-## Contributing
-
-We welcome contributions from the community! To get started, fork the repository and create a feature branch. Run the tests (if any) and ensure your changes pass linting and type checks. Submit a pull request with a clear description of the feature or bug fix. For major changes, open an issue first to discuss the approach. All contributions must adhere to the project's coding style and include appropriate documentation. If you encounter any problems, feel free to open an issue or reach out via the repository’s discussion board.
 
 ---
 
-Built with ❤️ by [Commitra](https://github.com/commitra)
+## Development
+
+```bash
+git clone https://github.com/Femtech-web/commitra
+cd commitra
+npm install
+```
+
+Run dev mode:
+
+```bash
+npm run dev commit
+```
+
+Build:
+
+```bash
+npm run build
+```
+
+Global link:
+
+```bash
+npm link
+commitra commit
+```
+
+---
+
+## 🤝 Contributing
+
+PRs welcome.  
+If you love clean DX tools, come build with us.
+
+---
+
+## 📄 License
+
+**MIT License** — see [LICENSE](LICENSE) file for details.
+
+---
+
+## ⭐ Support
+
+If you find Commitra useful, give it a star on GitHub ❤️  
+Opening issues, PRs, or feature requests is encouraged.
