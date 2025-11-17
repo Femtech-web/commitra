@@ -6,6 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub Repo](https://img.shields.io/github/stars/<YOUR_GITHUB>/commitra?style=social)](https://github.com/Femtech-web/commitra)
 
+commitra is an AI‑assisted developer intelligence CLI that helps developers create context‑rich commit messages, READMEs, and gain insights into their projects such as tech stack, architecture, and flow. By leveraging large language models and a suite of utility libraries, it analyzes the current repository, extracts meaningful metadata, and generates polished documentation and commit summaries automatically.
+
 ---
 
 ## 🎥 Demo
@@ -14,9 +16,15 @@
 
 ---
 
-## Start in 3 Simple Steps
+## Start in 4 Simple Steps
 
-### **Get a Groq API Key (default provider)**
+### Install commitra
+
+```bash
+npm install -g commitra
+```
+
+### **Create an account and get your Groq API Key (default provider)**
 
 Groq is the default AI engine for Commitra — fast and free to start.
 
