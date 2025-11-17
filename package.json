@@ -1,0 +1,91 @@
+{
+  "name": "commitra",
+  "version": "1.0.0",
+  "description": "An AI-assisted developer intelligence CLI that generates context-rich commit messages, READMEs, and project insights (tech stack, architecture, flow, etc.)",
+  "type": "module",
+  "bin": {
+    "commitra": "./dist/index.js",
+    "commitra-hook-entry": "./dist/hook-entry.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "pkgroll",
+    "start": "node dist/index.js",
+    "prepare": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ci": "vitest run --reporter=dot --coverage"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./hook-entry": "./dist/hook-entry.js"
+  },
+  "pkgroll": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "author": "Akolade Oluwafemi Adeyemi",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@clack/prompts": "^0.11.0",
+    "@iarna/toml": "^2.2.5",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.2",
+    "fast-glob": "^3.3.3",
+    "figlet": "^1.9.3",
+    "fuse.js": "^7.1.0",
+    "groq-sdk": "^0.34.0",
+    "ini": "^6.0.0",
+    "leven": "^4.1.0",
+    "mdast-util-from-markdown": "^2.0.2",
+    "mdast-util-to-markdown": "^2.1.2",
+    "minimatch": "^10.1.1",
+    "node-abort-controller": "^3.1.1",
+    "openai": "^6.8.1",
+    "ora": "^7.0.1",
+    "prettier": "^3.6.2",
+    "unified": "^11.0.5",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/ini": "^4.1.1",
+    "@types/node": "^24.10.1",
+    "@types/ora": "^3.1.0",
+    "@types/prettier": "^2.7.3",
+    "@types/xml2js": "^0.4.14",
+    "@vitest/coverage-v8": "^3.2.4",
+    "execa": "^9.6.0",
+    "pkgroll": "^2.20.1",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "ai",
+    "cli",
+    "developer-tools",
+    "commit",
+    "readme",
+    "automation",
+    "project-analysis"
+  ],
+  "homepage": "https://github.com/yourusername/commitra",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/commitra.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/commitra/issues"
+  }
+}
