@@ -38,6 +38,7 @@
     "figlet": "^1.9.3",
     "fuse.js": "^7.1.0",
     "groq-sdk": "^0.34.0",
+    "gsap": "^3.13.0",
     "ini": "^6.0.0",
     "leven": "^4.1.0",
     "mdast-util-from-markdown": "^2.0.2",
