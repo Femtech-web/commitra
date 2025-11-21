@@ -144,10 +144,10 @@ export default function FinalCTA() {
 
           {/* GitHub */}
           <a
-            href={process.env.NEXT_PUBLIC_GITHUB_URL}
+            href={process.env.NEXT_PUBLIC_GITHUB_URL || "#"}
             target="_blank"
             rel="noopener noreferrer"
-            className="final-button w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-5 bg-white/5 backdrop-blur-sm border border-white/20 rounded-xl font-semibold text-lg hover:bg-white/10 hover:border-white/40 transition-all group"
+            className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-5 bg-white/5 backdrop-blur-sm border border-white/20 rounded-xl font-semibold text-lg hover:bg-white/10 hover:border-white/40 transition-all group"
           >
             <Github className="w-6 h-6 group-hover:rotate-12 transition-transform" />
             <span>GitHub</span>
@@ -155,8 +155,8 @@ export default function FinalCTA() {
 
           {/* Docs */}
           <a
-            href={process.env.NEXT_PUBLIC_NPM_URL}
-            className="final-button w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-5 bg-white/5 backdrop-blur-sm border border-white/20 rounded-xl font-semibold text-lg hover:bg-white/10 hover:border-white/40 transition-all group"
+            href={process.env.NEXT_PUBLIC_NPM_URL || "#"}
+            className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-5 bg-white/5 backdrop-blur-sm border border-white/20 rounded-xl font-semibold text-lg hover:bg-white/10 hover:border-white/40 transition-all group"
           >
             <BookOpen className="w-6 h-6 group-hover:scale-110 transition-transform" />
             <span>Documentation</span>
