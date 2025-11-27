@@ -16,7 +16,7 @@ import { createAIClient } from "../../core/ai/ai.js";
 import { buildCommitPrompt } from "../../core/prompt/commit.js";
 import { buildEnhancedDiffContext } from "../../core/git/diff.js";
 import { detectProjectMetadata } from "../../core/detect/projectMetadata.js";
-import { getProjectRoot } from "../../core/utils/fs.js";
+import { findMetadataRootForStagedFiles, getProjectRoot } from "../../core/utils/fs.js";
 import type { ChatMessage } from "../../core/ai/types.js";
 
 export async function runCommitCommand(options?: { generate?: string; suggestOnly?: boolean }) {
@@ -76,8 +76,9 @@ export async function runCommitCommand(options?: { generate?: string; suggestOnl
     process.exit(0);
   }
 
-  const root = getProjectRoot();
+  const root = findMetadataRootForStagedFiles();
   const meta = await detectProjectMetadata(root);
+
   const dependencies = (meta.dependencies || [])
     .map((d: any) => d.name)
     .slice(0, 10)

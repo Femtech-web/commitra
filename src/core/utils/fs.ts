@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { minimatch } from "minimatch";
 import { BASE_EXCLUDE_PATTERNS, ROOT_MARKERS } from "./constants";
+import { execSync } from "child_process";
 
 
 function directoryHasRootMarker(dir: string): boolean {
@@ -44,6 +45,26 @@ export function getProjectRoot(startDir: string = process.cwd()): string {
     dir = parent;
   }
 }
+
+export function findMetadataRootForStagedFiles(): string {
+  const files = execSync("git diff --cached --name-only", { encoding: "utf8" })
+    .trim()
+    .split("\n");
+
+  for (const file of files) {
+    let dir = path.dirname(file);
+
+    while (dir !== "." && dir !== "/") {
+      if (fs.existsSync(path.join(dir, "package.json"))) {
+        return dir;
+      }
+      dir = path.dirname(dir);
+    }
+  }
+
+  return process.cwd();
+}
+
 
 export function debugRootDetection() {
   const root = getProjectRoot();

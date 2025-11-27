@@ -335,6 +335,29 @@ export function parseSwift(root: string): ProjectMetadata | null {
 }
 
 /* ---------------------------------------------
+   RECURSIVE MONOREPO SUPPORT
+--------------------------------------------- */
+
+async function scanSubfoldersForMetadata(root: string): Promise<ProjectMetadata | null> {
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+
+    const sub = path.join(root, entry.name);
+
+    const meta = await detectProjectMetadata(sub);
+    if (meta && meta.ecosystem !== "unknown") {
+      return meta;
+    }
+  }
+
+  return null;
+}
+
+
+/* ---------------------------------------------
    MAIN DISPATCHER
 --------------------------------------------- */
 
@@ -353,13 +376,15 @@ export async function detectProjectMetadata(root: string): Promise<ProjectMetada
     parseCsproj, // async
   ];
 
-  for (const detect of detectors) {
-    const result = detect.length === 1
-      ? detect(root) as ProjectMetadata
-      : await detect(root);
+  // for (const detect of detectors) {
+  //   const result = detect.length === 1
+  //     ? detect(root) as ProjectMetadata
+  //     : await detect(root);
 
-    if (result) return result;
-  }
+  //   if (result) return result;
+  // }
+  const subMeta = await scanSubfoldersForMetadata(root);
+  if (subMeta) return subMeta;
 
   return {
     name: path.basename(root),
@@ -368,3 +393,4 @@ export async function detectProjectMetadata(root: string): Promise<ProjectMetada
     ecosystem: "unknown",
   };
 }
+
