@@ -7,7 +7,7 @@ import { buildCommitPrompt } from "../../core/prompt/commit.js";
 import { buildEnhancedDiffContext, getStagedFiles } from "../../core/git/diff.js";
 import { detectProjectMetadata } from "../../core/detect/projectMetadata.js";
 import { findMetadataRootForStagedFiles } from "../../core/utils/fs.js";
-import type { ChatMessage } from "../../core/ai/types.js";
+import type { ChatCompletionResponse, ChatMessage } from "../../core/ai/types.js";
 import { commitWithMessage, getCurrentBranch, getGitRemote, getRecentCommitSubjects, requireRepositoryRoot } from "../../core/git/repo.js";
 import { runGit } from "../../core/git/command.js";
 import { normalizeCommitMessage, parseCommitFormat, parseSuggestionCount, type CommitFormat } from "../../core/commit/message.js";
@@ -104,9 +104,10 @@ export async function runCommitCommand(options: CommitOptions = {}) {
     { role: "user", content: prompt },
   ];
   let choices: string[];
+  let responses: ChatCompletionResponse[] = [];
   try {
     const ai = createAIClient(cfg);
-    const responses = await Promise.all(
+    responses = await Promise.all(
       Array.from({ length: generateCount }, () => ai.chat(messages, {
         max_tokens: format === "conventional-body" ? 300 : 120,
         temperature: 0.4,
@@ -124,7 +125,18 @@ export async function runCommitCommand(options: CommitOptions = {}) {
     return;
   }
   if (!quiet) spin.stop(redacted.redactions ? `Generated (${redacted.redactions} sensitive value(s) redacted)` : "Generated");
-  if (!choices.length) throw new Error("No commit messages generated.");
+  if (!choices.length) {
+    const finishReasons = responses.flatMap((response) => response.choices)
+      .map((choice) => choice.finish_reason)
+      .filter(Boolean);
+    const exhaustedBudget = finishReasons.includes("length");
+    const detail = exhaustedBudget
+      ? "The model exhausted its output budget before producing a commit message. Try again or choose a non-reasoning model."
+      : "The AI provider returned an empty response. Try again or select a different model with `commitra config set model <model>`.";
+    console.error(chalk.red("AI generation failed:"), detail);
+    process.exitCode = 1;
+    return;
+  }
 
   const metadata = { provider: cfg.provider, format, stagedFiles: stagedFiles.length, redactions: redacted.redactions };
   if (options.suggestOnly || options.dryRun || options.json || options.output) {

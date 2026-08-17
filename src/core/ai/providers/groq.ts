@@ -12,12 +12,14 @@ export function groqClientFactory(apiKey: string, opts: AIClientOptions = {}): A
     async chat(messages: ChatMessage[], options = {}): Promise<ChatCompletionResponse> {
       try {
         const client = await getClient();
+        const model = opts.model || (options.type === "commit" ? "openai/gpt-oss-120b" : "openai/gpt-oss-20b");
+        const completionOptions = getGroqCompletionOptions(model, options.max_tokens);
         const completion = await client.chat.completions.create({
-          model: opts.model || (options.type === "commit" ? "openai/gpt-oss-120b" : "openai/gpt-oss-20b"),
+          model,
           messages,
           temperature: options.temperature ?? 0.3,
           top_p: 1,
-          max_completion_tokens: options.max_tokens ?? 400,
+          ...completionOptions,
           n: options.n ?? 1,
           stream: false,
         });
@@ -34,6 +36,23 @@ export function groqClientFactory(apiKey: string, opts: AIClientOptions = {}): A
         throw error;
       }
     },
+  };
+}
+
+export function getGroqCompletionOptions(model: string, requestedTokens = 400): {
+  max_completion_tokens: number;
+  reasoning_effort?: "low";
+  reasoning_format?: "hidden";
+} {
+  const isGptOss = /^openai\/gpt-oss-(?:20b|120b)$/.test(model);
+  if (!isGptOss) return { max_completion_tokens: requestedTokens };
+
+  // GPT-OSS uses completion tokens for both reasoning and the visible answer.
+  // A one-line response can therefore be empty when given a small token budget.
+  return {
+    max_completion_tokens: Math.max(requestedTokens, 1_024),
+    reasoning_effort: "low",
+    reasoning_format: "hidden",
   };
 }
 

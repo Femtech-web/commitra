@@ -11,6 +11,7 @@ describe("commit message utilities", () => {
 
   it("normalizes model wrappers and enforces subject length", () => {
     expect(normalizeCommitMessage('```text\n"fix: stop command injection."\n```', 120)).toBe("fix: stop command injection");
-    expect(normalizeCommitMessage("feat: this subject is too long", 12)).toBe("feat: this s");
+    expect(normalizeCommitMessage("feat: this subject is too long", 12)).toBe("feat: this");
+    expect(normalizeCommitMessage("abcdefghijklmnop", 12)).toBe("abcdefghijkl");
   });
 });

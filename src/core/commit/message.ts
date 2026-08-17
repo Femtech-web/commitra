@@ -28,6 +28,11 @@ export function normalizeCommitMessage(raw: string, maxLength = 120, format: Com
   let message = raw.trim().replace(/^```(?:text)?\s*|\s*```$/g, "").replace(/^(["'])|(["'])$/g, "");
   if (format !== "conventional-body") message = message.replace(/\s*\n\s*/g, " ");
   const [subject, ...body] = message.split("\n");
-  const cleanSubject = subject.trim().replace(/[.!]+$/, "").slice(0, maxLength).trim();
+  const unboundedSubject = subject.trim().replace(/[.!]+$/, "");
+  const hardClippedSubject = unboundedSubject.slice(0, maxLength).trim();
+  const wordClippedSubject = hardClippedSubject.replace(/\s+\S*$/, "").trim();
+  const cleanSubject = unboundedSubject.length > maxLength
+    ? wordClippedSubject || hardClippedSubject
+    : unboundedSubject;
   return [cleanSubject, ...body].join("\n").trim();
 }
