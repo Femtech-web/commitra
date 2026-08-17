@@ -6,9 +6,6 @@ const LOADER = path.resolve(__dirname, "src/visual-edits/component-tagger-loader
 const isDev = process.env.NODE_ENV === "development";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "**" },
@@ -16,15 +13,16 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  ...(isDev && {
-    turbopack: {
+  turbopack: {
+    root: __dirname,
+    ...(isDev && {
       rules: {
         "*.{jsx,tsx}": {
           loaders: [LOADER],
         },
       },
-    },
-  }),
+    }),
+  },
 };
 
 export default nextConfig;

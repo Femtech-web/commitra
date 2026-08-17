@@ -17,7 +17,9 @@ describe("Git safety integration", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "commitra-git-safety-"));
     temporaryDirectories.push(root);
     runGit(["init", "--quiet"], { cwd: root });
-    const hostileName = "change-$(touch owned)-\"quoted\".ts";
+    // Double quotes are illegal in Windows filenames. A single quote still
+    // exercises argument handling without making the fixture OS-specific.
+    const hostileName = "change-$(touch owned)-'quoted'.ts";
     await fs.writeFile(path.join(root, hostileName), "export const safe = true;\n");
     runGit(["add", "--", hostileName], { cwd: root });
 

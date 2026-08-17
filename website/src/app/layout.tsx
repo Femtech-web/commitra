@@ -5,6 +5,7 @@ import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://commitra.vercel.app"),
   title: "Commitra — AI-Powered Commit Messages for Developers",
   description:
     "Never think about commit messages again. Commitra generates clean, accurate, conventional commits using AI — instantly.",
