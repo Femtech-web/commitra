@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/commitra.svg)](https://www.npmjs.com/package/commitra)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub Repo](https://img.shields.io/github/stars/<YOUR_GITHUB>/commitra?style=social)](https://github.com/Femtech-web/commitra)
+[![GitHub Repo](https://img.shields.io/github/stars/Femtech-web/commitra?style=social)](https://github.com/Femtech-web/commitra)
 
 commitra is an AI‑assisted developer intelligence CLI that helps developers create context‑rich commit messages, READMEs, and gain insights into their projects such as tech stack, architecture, and flow. By leveraging large language models and a suite of utility libraries, it analyzes the current repository, extracts meaningful metadata, and generates polished documentation and commit summaries automatically.
 
@@ -24,6 +24,8 @@ commitra is an AI‑assisted developer intelligence CLI that helps developers cr
 npm install -g commitra
 ```
 
+Commitra requires Node.js 20 or newer.
+
 ### **Create an account and get your Groq API Key (default provider)**
 
 Groq is the default AI engine for Commitra — fast and free to start.
@@ -33,16 +35,16 @@ Groq is the default AI engine for Commitra — fast and free to start.
 
 ---
 
-### **Save it to Commitra config**
+### **Run setup**
 
 ```bash
-commitra config set GROQ_API_KEY=your_key_here
+commitra setup
 ```
 
-(Optional) Set provider explicitly:
+Environment variables are recommended for API keys:
 
 ```bash
-commitra config set provider=groq
+export GROQ_API_KEY=your_key_here
 ```
 
 ---
@@ -100,6 +102,10 @@ commitra hook uninstall
 - **README generator**
 - **Config system with providers (OpenAI, Groq, Anthropic, Local)**
 - **Git hook integration**
+- **Large-diff summarization with bounded context**
+- **Secret redaction before AI requests**
+- **Interactive and automation-friendly workflows**
+- **Ollama and OpenAI-compatible local models**
 - Minimal, clean output — no noise
 
 ---
@@ -117,6 +123,8 @@ Supports:
 - Windows
 - (Homebrew formula coming soon)
 
+Requires Node.js 20+.
+
 ---
 
 ## 🧰 Commands Overview
@@ -132,9 +140,22 @@ commitra commit
 Options:
 
 ```
---suggest-only       Print suggestion without committing
--g, --generate <n>   Generate N suggestions
+--suggest-only                 Print suggestion without committing
+--dry-run                      Generate without committing
+-y, --yes                      Commit immediately without prompting
+-a, --all                      Stage tracked modifications/deletions
+-g, --generate <n>             Generate 1-10 suggestions
+-t, --format <format>          plain, conventional, conventional-scoped,
+                               conventional-body, or gitmoji
+-x, --exclude <patterns...>    Exclude paths from AI context
+--json                         Print machine-readable JSON
+-o, --output <file>            Write the result to a project file
+-c, --copy                     Copy the suggestion to the clipboard
+--debug-context                Inspect redacted context without an AI request
+--no-redact                    Explicitly disable default secret redaction
 ```
+
+Without automation flags, Commitra remains fully interactive: choose, edit, confirm, or cancel the generated message.
 
 ---
 
@@ -151,6 +172,7 @@ Options:
 ```
 -o, --output FILE     Output file (default: API_DOCS.md)
 -b, --base-url URL    Optional API base URL
+-f, --force           Overwrite an existing output file
 ```
 
 ---
@@ -166,11 +188,12 @@ commitra diagram
 Options:
 
 ```
--s, --summarize         Add AI architecture summary
+-s, --summarize         Enrich with AI (deterministic by default)
 -o, --output FILE        Save output (default: FLOW.md)
 -d, --depth N            Folder depth scan
 -t, --type flow|sequence|system
 -b, --base-url URL
+-f, --force             Overwrite an existing output file
 ```
 
 ---
@@ -182,6 +205,8 @@ Generate a signature-style README.md.
 ```bash
 commitra readme
 ```
+
+Existing files are protected. Pass `--force` to overwrite the selected output.
 
 ---
 
@@ -198,6 +223,7 @@ Options:
 ```
 -d, --depth N          Depth (default 3)
 -o, --output FILE      Output file (default: PROJECT_FOLDER.md)
+-f, --force            Overwrite an existing output file
 ```
 
 ---
@@ -216,6 +242,14 @@ commitra config get provider
 
 ```bash
 commitra config set provider=openai OPENAI_API_KEY=sk-123
+```
+
+Secrets are masked by `config get` and written with owner-only permissions. Prefer environment variables when possible.
+
+#### Unset:
+
+```bash
+commitra config unset OPENAI_API_KEY
 ```
 
 ---
@@ -243,8 +277,8 @@ commitra hook uninstall
 Commitra loads configuration from:
 
 1. CLI flags
-2. `~/.commitra` config file
-3. Environment variables
+2. Environment variables
+3. `~/.commitra` config file
 4. Defaults (Groq)
 
 ### Example `~/.commitra`
@@ -252,7 +286,7 @@ Commitra loads configuration from:
 ```
 provider=groq
 GROQ_API_KEY=your_key_here
-model=llama-3-8b
+model=openai/gpt-oss-120b
 ```
 
 Supported providers:
@@ -264,21 +298,35 @@ anthropic
 local
 ```
 
+### Local models
+
+Ollama example:
+
+```bash
+commitra config set provider=local LOCAL_MODEL_URL=http://127.0.0.1:11434 model=llama3.2
+commitra commit
+```
+
+OpenAI-compatible local servers are also supported by setting `LOCAL_MODEL_URL` to their base URL.
+
 ---
 
 ## **Environment Variables**
 
-> set them using **commitra config set key=value**.
+> Export secrets in your shell or CI secret store. `commitra config set` is available when a local owner-only config file is preferred.
 
 | Variable            | Meaning                                          |
 | ------------------- | ------------------------------------------------ |
 | `OPENAI_API_KEY`    | OpenAI auth                                      |
 | `GROQ_API_KEY`      | Groq auth                                        |
 | `ANTHROPIC_API_KEY` | Anthropic auth                                   |
-| `model`             | LLM provider model                               |
-| `provider`          | Override/set LLM provider                        |
-| `generate`          | Suggestions commit count to generate (default 1) |
-| `timeout`           | Request timeout                                  |
+| `COMMITRA_MODEL`       | LLM provider model                               |
+| `COMMITRA_PROVIDER`    | Override/set LLM provider                        |
+| `COMMITRA_GENERATE`    | Suggestions to generate (1-10)                  |
+| `COMMITRA_TIMEOUT`     | Request timeout in milliseconds                 |
+| `COMMITRA_FORMAT`      | Default commit-message format                   |
+| `COMMITRA_MAX_LENGTH`  | Maximum commit subject length                   |
+| `LOCAL_MODEL_URL`      | Ollama or OpenAI-compatible local endpoint      |
 
 ---
 
@@ -288,7 +336,7 @@ Commitra processes:
 
 - Git staged changes (numstat + diff)
 - File structure
-- Code snippets (truncated)
+- Code snippets (ranked and bounded)
 - Commit history
 - Environment metadata
 
@@ -298,6 +346,8 @@ Then feeds compact prompts to your AI provider to generate:
 - Diagrams
 - Documentation
 - README templates
+
+Sensitive-looking tokens, credentials, connection strings, and private keys are redacted from commit context by default. Use `commitra commit --debug-context` to inspect exactly what would be sent without contacting a provider.
 - API summaries
 
 Everything is processed **locally first**, so only optimized summaries go to the model.

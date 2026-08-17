@@ -16,8 +16,8 @@ export function mermaidFromDiagramJson(data: any, type: "flow" | "sequence" | "s
 
     if (seq.length) {
       for (const step of seq) {
-        const actor = normalizeLabel(step.actor || "Actor");
-        const target = normalizeLabel(step.target || "Target");
+        const actor = safeId(step.actor || "Actor");
+        const target = safeId(step.target || "Target");
         const action = normalizeLabel(step.action || "");
         lines.push(`${actor}->>${target}: ${action}`);
       }
@@ -94,7 +94,7 @@ function escapeLabel(s: string) {
   if (!s) return "";
   return String(s)
     .replace(/\n/g, " ")
-    .replace(/\|/g, " ");
+    .replace(/[|"<>]/g, " ");
 }
 
 function getNodeLabel(nodes: Node[], id: string) {
@@ -114,10 +114,12 @@ function cleanMermaidLabel(label: string) {
 }
 
 function safeId(id: string) {
-  return id
+  const cleaned = String(id)
     .replace(/\W+/g, "_")
     .replace(/^_+/, "")
     .replace(/_+$/, "");
+  if (!cleaned) return "node";
+  return /^\d/.test(cleaned) ? `node_${cleaned}` : cleaned;
 }
 
 /* ==============================
@@ -185,7 +187,8 @@ export function fallbackMermaidFromContext(ctx: any, type: "flow" | "sequence" |
       "participant U as User",
       "participant FE as Frontend",
       "participant API as API",
-      "participant SRV as Services"
+      "participant SRV as Services",
+      "participant Database as Database"
     ];
 
     if (hasContracts) lines.push("participant CH as Blockchain");

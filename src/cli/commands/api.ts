@@ -1,6 +1,4 @@
 import ora from "ora";
-import fs from "fs";
-import path from "path";
 import chalk from "chalk";
 import { Command } from "commander";
 import { createAIClient } from "../../core/ai/ai";
@@ -10,9 +8,11 @@ import { buildApiPrompt, apiSystemPrompt } from "../../core/prompt/api";
 import { buildApiDocFromJSON, formatMarkdown } from "../../core/output/markdown";
 import { getRuntimeConfig } from "../../core/config/manager";
 import { getProjectRoot } from "../../core/utils/fs";
+import { parseJsonResponse } from "../../core/ai/response.js";
+import { resolveProjectOutput, writeGeneratedFile } from "../../core/output/file.js";
 
 
-export async function runApiCommand(options: { output?: string; baseUrl?: string }) {
+export async function runApiCommand(options: { output?: string; baseUrl?: string; force?: boolean }) {
   console.log(chalk.cyanBright("\n📡 Commitra API Documentation Generator\n"));
   const spinner = ora("Scanning project...").start();
 
@@ -43,23 +43,19 @@ export async function runApiCommand(options: { output?: string; baseUrl?: string
 
     const raw = response.choices?.[0]?.message?.content || "{}";
 
-    let json;
-    try {
-      json = JSON.parse(raw);
-    } catch (err) {
-      throw new Error("AI returned invalid JSON");
-    }
+    const json = parseJsonResponse(raw);
 
     const markdown = buildApiDocFromJSON(json);
     const formatted = await formatMarkdown(markdown);
 
-    const outputPath = path.join(root, options.output ?? "API_DOCS.md");
-    fs.writeFileSync(outputPath, formatted, "utf-8");
+    const outputPath = resolveProjectOutput(root, options.output || "", "API_DOCS.md");
+    writeGeneratedFile(outputPath, formatted, options.force);
 
     spinner.succeed(`API docs generated: ${outputPath}`);
   } catch (err: any) {
     spinner.fail("API generation failed.");
     logError(err.message);
+    process.exitCode = 1;
   }
 }
 
@@ -69,7 +65,7 @@ export function registerApiCommand(program: Command) {
     .description("Generate full API documentation using AI")
     .option("-o, --output <file>", "Specify output file (default: API_DOCS.md)")
     .option("-b, --base-url <url>", "Specify the API base URL (optional)")
+    .option("-f, --force", "Overwrite an existing output file")
     .action((options) => runApiCommand(options));
 }
-
 

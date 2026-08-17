@@ -10,7 +10,10 @@
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "pkgroll",
+    "build": "node scripts/clean-dist.mjs && pkgroll",
+    "typecheck": "tsc --noEmit",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check": "npm run check:secrets && npm run typecheck && npm test && npm run build",
     "start": "node dist/index.js",
     "prepare": "npm run build",
     "test": "vitest run",
@@ -32,42 +35,32 @@
     "@clack/prompts": "^0.11.0",
     "@iarna/toml": "^2.2.5",
     "chalk": "^5.6.2",
-    "cli-table3": "^0.6.5",
     "commander": "^14.0.2",
-    "fast-glob": "^3.3.3",
     "figlet": "^1.9.3",
     "fuse.js": "^7.1.0",
     "groq-sdk": "^0.34.0",
-    "gsap": "^3.13.0",
     "ini": "^6.0.0",
-    "leven": "^4.1.0",
     "mdast-util-from-markdown": "^2.0.2",
     "mdast-util-to-markdown": "^2.1.2",
     "minimatch": "^10.1.1",
-    "node-abort-controller": "^3.1.1",
     "openai": "^6.8.1",
     "ora": "^7.0.1",
     "prettier": "^3.6.2",
-    "unified": "^11.0.5",
-    "xml2js": "^0.6.2"
+    "xml2js": "^0.6.2",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.4",
     "@types/ini": "^4.1.1",
     "@types/node": "^24.10.1",
-    "@types/ora": "^3.1.0",
-    "@types/prettier": "^2.7.3",
     "@types/xml2js": "^0.4.14",
     "@vitest/coverage-v8": "^3.2.4",
-    "execa": "^9.6.0",
     "pkgroll": "^2.20.1",
-    "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.7.0",
     "vitest": "^3.2.4"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "files": [
     "dist"

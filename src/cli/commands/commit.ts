@@ -1,245 +1,192 @@
-import { execSync } from "child_process";
-import fs from "fs";
 import chalk from "chalk";
-import {
-  intro,
-  outro,
-  spinner,
-  select,
-  confirm,
-  text,
-  isCancel,
-} from "@clack/prompts";
-
+import { confirm, intro, isCancel, outro, select, spinner, text } from "@clack/prompts";
+import type { Command } from "commander";
 import { getRuntimeConfig } from "../../core/config/manager.js";
 import { createAIClient } from "../../core/ai/ai.js";
 import { buildCommitPrompt } from "../../core/prompt/commit.js";
-import { buildEnhancedDiffContext } from "../../core/git/diff.js";
+import { buildEnhancedDiffContext, getStagedFiles } from "../../core/git/diff.js";
 import { detectProjectMetadata } from "../../core/detect/projectMetadata.js";
-import { findMetadataRootForStagedFiles, getProjectRoot } from "../../core/utils/fs.js";
+import { findMetadataRootForStagedFiles } from "../../core/utils/fs.js";
 import type { ChatMessage } from "../../core/ai/types.js";
+import { commitWithMessage, getCurrentBranch, getGitRemote, getRecentCommitSubjects, requireRepositoryRoot } from "../../core/git/repo.js";
+import { runGit } from "../../core/git/command.js";
+import { normalizeCommitMessage, parseCommitFormat, parseSuggestionCount, type CommitFormat } from "../../core/commit/message.js";
+import { redactSensitiveText } from "../../core/privacy/redact.js";
+import { copyToClipboard } from "../../core/output/clipboard.js";
+import { resolveProjectOutput, writeGeneratedFile } from "../../core/output/file.js";
 
-export async function runCommitCommand(options?: { generate?: string; suggestOnly?: boolean }) {
-  if (!fs.existsSync(".git")) {
+type CommitOptions = {
+  generate?: string;
+  suggestOnly?: boolean;
+  dryRun?: boolean;
+  yes?: boolean;
+  all?: boolean;
+  copy?: boolean;
+  json?: boolean;
+  output?: string;
+  force?: boolean;
+  exclude?: string[];
+  debugContext?: boolean;
+  redact?: boolean;
+  format?: CommitFormat;
+  prompt?: string;
+};
+
+function writeResult(message: string, options: CommitOptions, metadata: Record<string, unknown>, root: string): void {
+  const output = options.json ? `${JSON.stringify({ message, ...metadata })}\n` : `${message}\n`;
+  if (options.output) {
+    writeGeneratedFile(resolveProjectOutput(root, options.output, "commit-message.txt"), output, options.force);
+    return;
+  }
+  process.stdout.write(output);
+}
+
+export async function runCommitCommand(options: CommitOptions = {}) {
+  let root: string;
+  try {
+    root = requireRepositoryRoot();
+  } catch {
     console.error(chalk.red("Not a git repository."));
-    process.exit(1);
-  }
-
-  // check working tree
-  const status = execSync("git status --porcelain", { encoding: "utf8" }).trim();
-  if (!status) {
-    console.log(chalk.yellow("Nothing to commit — working tree clean."));
-    process.exit(0);
-  }
-
-  // check staged changes
-  const staged = execSync("git diff --cached --name-only", { encoding: "utf8" }).trim();
-  if (!staged) {
-    console.log(chalk.yellow("No staged changes found — stage files first [git add <file>]"));
-    process.exit(0);
-  }
-
-  // safe remote detection
-  let remote = "";
-  try {
-    remote = execSync("git remote get-url origin", { encoding: "utf8" }).trim();
-  } catch {
-    remote = "";
-  }
-
-  if (!remote.includes("github.com")) {
-    console.log(
-      chalk.yellow("Commitra will still run, but GitHub metadata won't be detected.")
-    );
-  }
-
-  let branch = "main";
-  try {
-    const b = execSync("git rev-parse --abbrev-ref HEAD", { encoding: "utf8" }).trim();
-    if (b) branch = b;
-  } catch {
-  }
-
-  // safe recent commit messages
-  let lastCommits: string[] = [];
-  try {
-    const output = execSync("git log -n 5 --pretty=format:%s", { encoding: "utf8" }).trim();
-    if (output) lastCommits = output.split("\n");
-  } catch {
-    lastCommits = [];
-  }
-
-  // diff buildup
-  const diff = buildEnhancedDiffContext();
-  if (!diff.trim()) {
-    console.log(chalk.yellow("No staged changes found. Stage your changes first."));
-    process.exit(0);
-  }
-
-  const root = findMetadataRootForStagedFiles();
-  const meta = await detectProjectMetadata(root);
-
-  const dependencies = (meta.dependencies || [])
-    .map((d: any) => d.name)
-    .slice(0, 10)
-    .join(", ");
-  const techStack = `language: ${meta.language}, ecosystem: ${meta.ecosystem}, dependencies: ${dependencies}`;
-
-  // ai config
-  const cfg = await getRuntimeConfig();
-  const generateCount = Math.max(
-    1,
-    Number(options?.generate ?? cfg.generate ?? 1)
-  );
-
-  const userLocale =
-    cfg.locale || Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0];
-
-  const prompt = buildCommitPrompt({
-    diff,
-    branch,
-    lastCommits,
-    techStack,
-    locale: userLocale,
-    maxLength: 120,
-  });
-
-  intro(chalk.bgBlueBright.black(" Commitra "));
-
-  const ai = createAIClient(cfg);
-
-  const msgs: ChatMessage[] = [
-    {
-      role: "system",
-      content:
-        "You are Commitra, an expert AI that generates clean, conventional-style commit messages.",
-    },
-    { role: "user", content: prompt },
-  ];
-
-  const spin = spinner();
-  spin.start(`Analyzing changes using ${cfg.provider}...`);
-
-  // ai generation
-  let choices: string[] = [];
-  try {
-    if (generateCount === 1) {
-      const res = await ai.chat(msgs, {
-        max_tokens: 400,
-        temperature: 0.4,
-        n: 1,
-        type: "commit",
-      });
-      choices = res.choices.map((c) => c.message?.content?.trim()).filter(Boolean);
-    } else {
-      const res = await Promise.all(
-        [...Array(generateCount)].map(async () => {
-          const r = await ai.chat(msgs, {
-            max_tokens: 400,
-            temperature: 0.4,
-            n: 1,
-            type: "commit",
-          });
-          return r.choices[0].message?.content?.trim();
-        })
-      );
-      choices = [...new Set(res.filter(Boolean))];
-    }
-  } catch (err: any) {
-    spin.stop("Failed");
-    console.error(chalk.red("AI generation failed:"), err.message);
-    process.exit(1);
-  }
-
-  spin.stop("Generated");
-
-  if (!choices.length) {
-    console.error(chalk.red("No commit messages generated."));
-    process.exit(1);
-  }
-
-  // suggest onlt
-  if (options?.suggestOnly) {
-    console.log(choices[0]);
+    process.exitCode = 1;
     return;
   }
 
-  // UX flow
-  let final = choices[0];
-  let useLikeThat = false;
-
-  if (choices.length === 1) {
-    const choice = await select({
-      message: `Review commit message:\n\n   ${final}\n`,
-      options: [
-        { label: "Use", value: "use" },
-        { label: "Edit", value: "edit" },
-        { label: "Cancel", value: "cancel" },
-      ],
-    });
-
-    if (choice === "cancel" || isCancel(choice)) {
-      outro("Commit cancelled.");
-      process.exit(0);
-    }
-
-    if (choice === "edit") {
-      const edited = await text({
-        message: "Edit commit message:",
-        initialValue: final,
-        validate: (v) =>
-          v && v.trim().length > 0 ? undefined : "Message cannot be empty.",
-      });
-      if (isCancel(edited)) {
-        outro("Commit cancelled.");
-        process.exit(0);
-      }
-      final = edited.trim();
-    } else {
-      useLikeThat = true;
-    }
-  } else {
-    const selected = await select({
-      message: "Choose your preferred commit message:",
-      options: choices.map((c) => ({ label: c, value: c })),
-    });
-
-    if (isCancel(selected)) {
-      outro("Commit cancelled.");
-      process.exit(0);
-    }
-
-    final = selected as string;
-    useLikeThat = true;
+  if (options.all) runGit(["add", "--update"], { cwd: root });
+  const stagedFiles = getStagedFiles(root, options.exclude || []);
+  if (!stagedFiles.length) {
+    console.log(chalk.yellow("No staged changes found — stage files first with `git add`."));
+    return;
   }
 
+  const quiet = Boolean(options.suggestOnly || options.dryRun || options.json || options.output);
+  if (!getGitRemote(root)?.includes("github.com") && !quiet) {
+    console.log(chalk.yellow("Commitra will still run, but GitHub metadata won't be detected."));
+  }
 
-  if (!useLikeThat) {
-    const proceed = await confirm({
-      message: `Proceed with this commit message?\n\n   ${final}\n`,
+  const rawDiff = buildEnhancedDiffContext(6_000, root, options.exclude || []);
+  const redacted = options.redact === false ? { text: rawDiff, redactions: 0 } : redactSensitiveText(rawDiff);
+  if (!redacted.text.trim()) {
+    console.log(chalk.yellow("Unable to build context from the staged changes."));
+    return;
+  }
+
+  if (options.debugContext) {
+    process.stdout.write(`${redacted.text}\n`);
+    if (redacted.redactions) console.error(chalk.yellow(`Redacted ${redacted.redactions} sensitive value(s).`));
+    return;
+  }
+
+  const meta = await detectProjectMetadata(findMetadataRootForStagedFiles(root));
+  const techStack = `language: ${meta.language}, ecosystem: ${meta.ecosystem}, dependencies: ${(meta.dependencies || [])
+    .map((dependency: { name: string }) => dependency.name)
+    .slice(0, 10)
+    .join(", ")}`;
+  const cfg = await getRuntimeConfig();
+  const generateCount = parseSuggestionCount(options.generate ?? cfg.generate);
+  const format = parseCommitFormat(options.format, cfg.format);
+  const prompt = buildCommitPrompt({
+    diff: redacted.text,
+    branch: getCurrentBranch(root) || "HEAD",
+    lastCommits: getRecentCommitSubjects(5, root),
+    techStack,
+    locale: cfg.locale || Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0],
+    maxLength: cfg.maxLength,
+    format,
+    customInstructions: options.prompt || "",
+  });
+
+  if (!quiet) intro(chalk.bgBlueBright.black(" Commitra "));
+  const spin = spinner();
+  if (!quiet) spin.start(`Analyzing ${stagedFiles.length} staged file(s) using ${cfg.provider}...`);
+
+  const messages: ChatMessage[] = [
+    { role: "system", content: "Generate accurate commit messages from the supplied staged-change context." },
+    { role: "user", content: prompt },
+  ];
+  let choices: string[];
+  try {
+    const ai = createAIClient(cfg);
+    const responses = await Promise.all(
+      Array.from({ length: generateCount }, () => ai.chat(messages, {
+        max_tokens: format === "conventional-body" ? 300 : 120,
+        temperature: 0.4,
+        n: 1,
+        type: "commit",
+      })),
+    );
+    choices = [...new Set(responses.flatMap((response) => response.choices)
+      .map((choice) => normalizeCommitMessage(choice.message?.content || "", cfg.maxLength, format))
+      .filter(Boolean))];
+  } catch (error) {
+    if (!quiet) spin.stop("Failed");
+    console.error(chalk.red("AI generation failed:"), error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+    return;
+  }
+  if (!quiet) spin.stop(redacted.redactions ? `Generated (${redacted.redactions} sensitive value(s) redacted)` : "Generated");
+  if (!choices.length) throw new Error("No commit messages generated.");
+
+  const metadata = { provider: cfg.provider, format, stagedFiles: stagedFiles.length, redactions: redacted.redactions };
+  if (options.suggestOnly || options.dryRun || options.json || options.output) {
+    writeResult(choices[0], options, metadata, root);
+    return;
+  }
+  if (options.copy) {
+    copyToClipboard(choices[0]);
+    console.log(chalk.green("Copied commit message to clipboard."));
+    return;
+  }
+  if (options.yes) {
+    commitWithMessage(choices[0], [], root);
+    outro(chalk.green("✔ Successfully committed!"));
+    return;
+  }
+
+  let final = choices[0];
+  if (choices.length > 1) {
+    const selected = await select({ message: "Choose your preferred commit message:", options: choices.map((choice) => ({ label: choice, value: choice })) });
+    if (isCancel(selected)) return void outro("Commit cancelled.");
+    final = selected as string;
+  } else {
+    const action = await select({
+      message: `Review commit message:\n\n   ${final}\n`,
+      options: [{ label: "Use", value: "use" }, { label: "Edit", value: "edit" }, { label: "Cancel", value: "cancel" }],
     });
-    if (!proceed) {
-      outro("Commit cancelled.");
-      process.exit(0);
+    if (action === "cancel" || isCancel(action)) return void outro("Commit cancelled.");
+    if (action === "edit") {
+      const edited = await text({ message: "Edit commit message:", initialValue: final, validate: (value) => value?.trim() ? undefined : "Message cannot be empty." });
+      if (isCancel(edited)) return void outro("Commit cancelled.");
+      final = edited.trim();
+      const proceed = await confirm({ message: `Proceed with this commit message?\n\n   ${final}\n` });
+      if (!proceed || isCancel(proceed)) return void outro("Commit cancelled.");
     }
   }
 
   try {
-    execSync(`git commit -m "${final.replace(/"/g, "'")}"`, {
-      stdio: "inherit",
-    });
+    commitWithMessage(final, [], root);
     outro(chalk.green("✔ Successfully committed!"));
-  } catch (err: any) {
-    console.error(chalk.red("Commit failed:"), err.message);
-    process.exit(1);
+  } catch (error) {
+    console.error(chalk.red("Commit failed:"), error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
   }
 }
 
-export function registerCommitCommand(program: any) {
-  program
-    .command("commit")
+export function registerCommitCommand(program: Command) {
+  program.command("commit")
     .description("Generate an AI-powered commit message")
-    .option("--suggest-only", "Print suggestion only")
-    .option("-g, --generate <n>", "Generate N suggestions", "1")
+    .option("--suggest-only", "Print only the first suggestion")
+    .option("--dry-run", "Generate without committing")
+    .option("-y, --yes", "Commit the first suggestion without prompting")
+    .option("-a, --all", "Stage modifications and deletions to tracked files")
+    .option("-c, --copy", "Copy the first suggestion to the clipboard")
+    .option("--json", "Print machine-readable JSON")
+    .option("-o, --output <path>", "Write the result to a file")
+    .option("-f, --force", "Overwrite an existing output file")
+    .option("-x, --exclude <patterns...>", "Exclude paths from AI context")
+    .option("--debug-context", "Print the redacted AI context without sending it")
+    .option("--no-redact", "Disable automatic secret redaction")
+    .option("-t, --format <format>", "plain | conventional | conventional-scoped | conventional-body | gitmoji")
+    .option("-p, --prompt <instruction>", "Add project-specific generation guidance")
+    .option("-g, --generate <n>", "Generate 1-10 suggestions")
     .action(runCommitCommand);
 }

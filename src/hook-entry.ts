@@ -16,6 +16,7 @@ if (!commitMsgFile) {
     process.exit(0);
   } catch (err: any) {
     console.error("Commitra Hook Failure:", err?.message || err);
-    process.exit(1);
+    // Hooks must fail open so an unavailable provider never blocks a commit.
+    process.exit(0);
   }
 })();

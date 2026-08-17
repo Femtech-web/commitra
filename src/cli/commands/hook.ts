@@ -1,93 +1,68 @@
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import chalk from "chalk";
-import { getProjectRoot } from "../../core/utils/fs.js";
+import type { Command } from "commander";
+import { getGitPath, requireRepositoryRoot } from "../../core/git/repo.js";
 
 const HOOK_NAME = "prepare-commit-msg";
-const REL_HOOK_PATH = `.git/hooks/${HOOK_NAME}`;
+const MARKER = "Commitra Git hook";
+const shellQuote = (value: string) => `'${value.replace(/'/g, `'"'"'`)}'`;
 
-async function installHook(hookPath: string, hookEntryFile: string) {
-  const exists = await fs
-    .stat(hookEntryFile)
-    .then(() => true)
-    .catch(() => false);
-
-  if (!exists) {
-    console.error(
-      chalk.red(
-        `dist/hook-entry.js not found at:\n${hookEntryFile}\nRun \`npm run build\` first.`
-      )
-    );
-    process.exit(1);
-  }
-
+export async function installHook(hookPath: string, hookEntryFile: string) {
+  await fs.access(hookEntryFile).catch(() => {
+    throw new Error(`Hook entry not found at ${hookEntryFile}. Run \`npm run build\` first.`);
+  });
   await fs.mkdir(path.dirname(hookPath), { recursive: true });
 
-  const hookExists = await fs
-    .readFile(hookPath, "utf8")
-    .then((c) => c.includes("Commitra Git hook"))
-    .catch(() => false);
+  const existing = await fs.readFile(hookPath, "utf8").catch(() => "");
+  if (existing.includes(MARKER)) return void console.log(chalk.yellow("Hook already installed."));
 
-  if (hookExists) {
-    console.log(chalk.yellow("Hook already installed."));
-    return;
+  const backupPath = `${hookPath}.commitra-backup`;
+  if (existing) {
+    await fs.access(backupPath).then(() => {
+      throw new Error(`Cannot preserve the existing hook because ${backupPath} already exists.`);
+    }).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+    });
+    await fs.rename(hookPath, backupPath);
   }
 
-  // Create portable shim
+  const backup = shellQuote(backupPath);
   const shim = `#!/bin/sh
-  # Commitra Git hook — auto-generated
-  exec node ${JSON.stringify(hookEntryFile)} "$@"
-  `;
-
-  await fs.writeFile(hookPath, shim);
+# ${MARKER} — auto-generated
+if [ -x ${backup} ]; then
+  ${backup} "$@" || exit $?
+fi
+exec ${shellQuote(process.execPath)} ${shellQuote(hookEntryFile)} "$@"
+`;
+  await fs.writeFile(hookPath, shim, { encoding: "utf8", mode: 0o755 });
   await fs.chmod(hookPath, 0o755);
-
   console.log(chalk.green(`✔ Commitra hook installed → ${hookPath}`));
 }
 
-async function uninstallHook(hookPath: string) {
-  const exists = await fs
-    .readFile(hookPath, "utf8")
-    .then((c) => c.includes("Commitra Git hook"))
-    .catch(() => false);
-
-  if (!exists) {
-    console.log(chalk.gray("Hook is not installed or was not created by Commitra."));
-    return;
-  }
-
+export async function uninstallHook(hookPath: string) {
+  const existing = await fs.readFile(hookPath, "utf8").catch(() => "");
+  if (!existing.includes(MARKER)) return void console.log(chalk.gray("Hook is not installed or was not created by Commitra."));
   await fs.unlink(hookPath);
-  console.log(chalk.yellow(`🗑️ Commitra hook removed → ${hookPath}`));
+  const backupPath = `${hookPath}.commitra-backup`;
+  await fs.rename(backupPath, hookPath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+  });
+  console.log(chalk.yellow(`Commitra hook removed → ${hookPath}`));
 }
 
-export function registerHookCommand(program: any) {
-  program
-    .command("hook")
-    .description("Install or uninstall Commitra’s prepare-commit-msg git hook")
+export function registerHookCommand(program: Command) {
+  program.command("hook")
+    .description("Install or uninstall Commitra’s prepare-commit-msg Git hook")
     .argument("<action>", "install | uninstall")
-    .action(async (action: "install" | "uninstall") => {
-      const root = getProjectRoot();
-      const hookPath = path.join(root, REL_HOOK_PATH);
-
-      const pkgRoot = path.resolve(
-        path.dirname(fileURLToPath(import.meta.url)),
-        "..",
-      );
-
-      const hookEntryFile = path.join(pkgRoot, "dist", "hook-entry.js");
-
-      if (action === "install") {
-        await installHook(hookPath, hookEntryFile);
-        return;
-      }
-
-      if (action === "uninstall") {
-        await uninstallHook(hookPath);
-        return;
-      }
-
-      console.error(chalk.red(`Invalid action: ${action}`));
-      process.exit(1);
+    .action(async (action: string) => {
+      const root = requireRepositoryRoot();
+      const hookPath = path.join(getGitPath("hooks", root), HOOK_NAME);
+      const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+      const hookEntryFile = path.join(packageRoot, "dist", "hook-entry.js");
+      if (action === "install") return installHook(hookPath, hookEntryFile);
+      if (action === "uninstall") return uninstallHook(hookPath);
+      throw new Error(`Invalid hook action: ${action}`);
     });
 }

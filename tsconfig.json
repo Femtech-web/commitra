@@ -11,13 +11,13 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "strict": true,
-    "types": ["node", "vitest", "vitest/globals", "./tests"]
+    "types": ["node", "vitest/globals"],
+    "noEmit": true
   },
   "include": [
     "src/**/*",
-    "tests",
-    "src/vitest-env.d.ts",
-    "../planning/integration"
+    "tests/**/*.ts",
+    "vitest-env.d.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }

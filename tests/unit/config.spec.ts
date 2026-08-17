@@ -46,7 +46,7 @@ describe("getRuntimeConfig", () => {
   });
 
   it("falls back to env when file missing", async () => {
-    vi.mocked(fs.readFile).mockRejectedValue(new Error("missing"));
+    vi.mocked(fs.readFile).mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }));
     process.env.OPENAI_API_KEY = "xyz";
 
     const cfg = await getRuntimeConfig();

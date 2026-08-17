@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import figlet from 'figlet';
 import { handleCliError } from '../core/utils/error.js';
 
 import { registerCommitCommand } from './commands/commit.js';
@@ -10,12 +9,14 @@ import { registerDiagramCommand } from './commands/diagram.js';
 import { registerProjectFolderCommand } from './commands/project-folder.js';
 import { registerHookCommand } from "./commands/hook.js";
 import { registerConfigCommand } from "./commands/config.js";
+import { registerSetupCommand } from "./commands/setup.js";
 import { loadPackageJson } from "../core/utils/helpers.js";
 
 const packageJson = loadPackageJson();
 
 // --- CLI Banner ---
-const showBanner = () => {
+const showBanner = async () => {
+  const { default: figlet } = await import('figlet');
   console.log(
     chalk.cyanBright(
       figlet.textSync('Commitra', { horizontalLayout: 'fitted' })
@@ -31,7 +32,8 @@ export async function runCli(argv = process.argv) {
   const program = new Command();
 
 
-  showBanner();
+  const args = argv.slice(2);
+  if (args.length === 0 || args.includes('--help') || args.includes('-h')) await showBanner();
 
   program
     .name('commitra')
@@ -51,6 +53,7 @@ export async function runCli(argv = process.argv) {
   registerProjectFolderCommand(program);
   registerHookCommand(program);
   registerConfigCommand(program);
+  registerSetupCommand(program);
 
   try {
     await program.parseAsync(argv);
@@ -58,9 +61,4 @@ export async function runCli(argv = process.argv) {
     handleCliError(error);
     process.exit(1);
   }
-}
-
-// Auto-run when executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  runCli();
 }

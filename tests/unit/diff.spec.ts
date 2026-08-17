@@ -1,47 +1,43 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { buildEnhancedDiffContext } from "../../src/core/git/diff";
-import { spawnSync } from "child_process";
-import { execSync } from "child_process";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runGit } from "../../src/core/git/command.js";
+import { buildEnhancedDiffContext } from "../../src/core/git/diff.js";
 
-vi.mock("child_process", () => ({
-  spawnSync: vi.fn(),
-  execSync: vi.fn(),
-}));
+vi.mock("../../src/core/git/command.js", () => ({ runGit: vi.fn() }));
+
+const result = (stdout: string, overrides = {}) => ({ stdout, stderr: "", status: 0, truncated: false, ...overrides });
 
 describe("buildEnhancedDiffContext", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns a summary and bounded snippets", () => {
+    vi.mocked(runGit)
+      .mockReturnValueOnce(result("fileA.ts\0fileB.ts\0"))
+      .mockReturnValueOnce(result("10\t2\tfileA.ts\0" + "5\t1\tfileB.ts\0"))
+      .mockReturnValueOnce(result("diff --git a/fileA.ts b/fileA.ts\n@@ -1 +1 @@\n+change1"));
+
+    const output = buildEnhancedDiffContext();
+    expect(output).toContain("CHANGES SUMMARY:");
+    expect(output).toContain("Files changed: 2");
+    expect(output).toContain("CODE CONTEXT:");
+    expect(output).toContain("+change1");
   });
 
-  it("returns enhanced diff summary + snippets when data exists", () => {
-    // staged files
-    vi.mocked(spawnSync).mockReturnValueOnce({ stdout: "fileA.ts\nfileB.ts\n" });
+  it("does not execute a staged filename through a shell", () => {
+    const hostile = '$(touch owned); "quoted".ts';
+    vi.mocked(runGit)
+      .mockReturnValueOnce(result(`${hostile}\0`))
+      .mockReturnValueOnce(result(`1\t0\t${hostile}\0`))
+      .mockReturnValueOnce(result("@@ -0,0 +1 @@\n+safe"));
 
-    // diff summary
-    vi.mocked(spawnSync).mockReturnValueOnce({
-      stdout: "10\t2\tfileA.ts\n5\t1\tfileB.ts\n",
-    });
-
-    // snippets (execSync for each file)
-    vi.mocked(execSync)
-      .mockReturnValueOnce("@@ -1 +1 @@\n+change1")
-      .mockReturnValueOnce("@@ -2 +2 @@\n+change2");
-
-    const result = buildEnhancedDiffContext();
-
-    expect(result).toContain("CHANGES SUMMARY:");
-    expect(result).toContain("Files changed: 2");
-    expect(result).toContain("CODE CONTEXT:");
-    expect(result).toContain("# fileA.ts");
-    expect(result).toContain("# fileB.ts");
+    buildEnhancedDiffContext();
+    const snippetArgs = vi.mocked(runGit).mock.calls[2][0];
+    expect(snippetArgs).toContain(hostile);
+    expect(snippetArgs).toContain("--");
   });
 
-  it("uses fallback diff if summary and snippets are empty", () => {
-    vi.mocked(spawnSync).mockReturnValue({ stdout: "" });
-    vi.mocked(execSync).mockReturnValue("FULL FALLBACK DIFF");
-
-    const result = buildEnhancedDiffContext();
-    expect(result).toContain("FULL DIFF (fallback):");
-    expect(result).toContain("FULL FALLBACK DIFF");
+  it("returns an empty context when nothing is staged", () => {
+    vi.mocked(runGit).mockReturnValueOnce(result(""));
+    expect(buildEnhancedDiffContext()).toBe("");
+    expect(runGit).toHaveBeenCalledTimes(1);
   });
 });

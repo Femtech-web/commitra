@@ -2,7 +2,10 @@ import fs from "fs";
 import path from "path";
 import { minimatch } from "minimatch";
 import { BASE_EXCLUDE_PATTERNS, ROOT_MARKERS } from "./constants";
-import { execSync } from "child_process";
+import { getStagedFiles } from "../git/diff.js";
+import { createRequire } from "node:module";
+
+const requireModule = createRequire(import.meta.url);
 
 
 function directoryHasRootMarker(dir: string): boolean {
@@ -46,23 +49,24 @@ export function getProjectRoot(startDir: string = process.cwd()): string {
   }
 }
 
-export function findMetadataRootForStagedFiles(): string {
-  const files = execSync("git diff --cached --name-only", { encoding: "utf8" })
-    .trim()
-    .split("\n");
+export function findMetadataRootForStagedFiles(repositoryRoot = process.cwd()): string {
+  const root = path.resolve(repositoryRoot);
+  const files = getStagedFiles(root);
 
   for (const file of files) {
-    let dir = path.dirname(file);
+    let dir = path.dirname(path.resolve(root, file));
 
-    while (dir !== "." && dir !== "/") {
+    while (dir === root || dir.startsWith(`${root}${path.sep}`)) {
       if (fs.existsSync(path.join(dir, "package.json"))) {
         return dir;
       }
-      dir = path.dirname(dir);
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
     }
   }
 
-  return process.cwd();
+  return root;
 }
 
 
@@ -93,7 +97,7 @@ export function loadCommitraConfig(root: string) {
     if (fs.existsSync(full)) {
       try {
         if (file.endsWith(".yaml") || file.endsWith(".yml")) {
-          return require("yaml").parse(fs.readFileSync(full, "utf-8"));
+          return requireModule("yaml").parse(fs.readFileSync(full, "utf-8"));
         }
         return JSON.parse(fs.readFileSync(full, "utf-8"));
       } catch (e) {
@@ -191,4 +195,3 @@ export function writeFileSafe(filePath: string, content: string) {
   ensureDir(dir);
   fs.writeFileSync(filePath, content, "utf8");
 }
-

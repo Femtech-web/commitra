@@ -6,6 +6,9 @@ import { createAIClient } from "../../core/ai/ai.js";
 import { getRuntimeConfig } from "../../core/config/manager.js";
 import { buildCommitPrompt } from "../../core/prompt/commit.js";
 import type { ChatMessage } from "../../core/ai/types.js";
+import path from "node:path";
+import { getGitPath } from "../../core/git/repo.js";
+import { redactSensitiveText } from "../../core/privacy/redact.js";
 
 
 export async function runPrepareCommitMsg(messageFilePath: string, _commitSource?: string) {
@@ -15,7 +18,13 @@ export async function runPrepareCommitMsg(messageFilePath: string, _commitSource
         "Commitra: Missing commit message file path. This file should only be run via the Git prepare-commit-msg hook."
       )
     );
-    process.exit(1);
+    return;
+  }
+
+  const expectedPath = path.resolve(getGitPath("COMMIT_EDITMSG"));
+  if (path.resolve(messageFilePath) !== expectedPath) {
+    console.error(chalk.yellow("Commitra hook ignored an unexpected commit-message path."));
+    return;
   }
 
   try {
@@ -34,7 +43,7 @@ export async function runPrepareCommitMsg(messageFilePath: string, _commitSource
     return;
   }
 
-  const diff = buildEnhancedDiffContext();
+  const { text: diff } = redactSensitiveText(buildEnhancedDiffContext());
   if (!diff.trim()) {
     return;
   }
@@ -74,6 +83,9 @@ export async function runPrepareCommitMsg(messageFilePath: string, _commitSource
     suggestions = (res.choices || [])
       .map((c) => c.message?.content?.trim())
       .filter(Boolean) as string[];
+  } catch (error) {
+    console.error(chalk.yellow(`Commitra hook skipped AI generation: ${error instanceof Error ? error.message : String(error)}`));
+    return;
   } finally {
     s.stop("Analysis complete");
   }
@@ -96,6 +108,6 @@ export async function runPrepareCommitMsg(messageFilePath: string, _commitSource
     outro(chalk.green("✔ Commitra suggestions added"));
   } catch (err: any) {
     console.error("Commitra hook write error:", err.message || err);
-    process.exit(1);
+    return;
   }
 }

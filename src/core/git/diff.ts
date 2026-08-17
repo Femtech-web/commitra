@@ -1,153 +1,138 @@
-import { execSync, spawnSync } from "child_process";
-import { BASE_EXCLUDE_PATTERNS } from "../utils/constants";
+import { BASE_EXCLUDE_PATTERNS } from "../utils/constants.js";
+import { runGit } from "./command.js";
 
-const excludeArgs = BASE_EXCLUDE_PATTERNS.map((p) => `:(exclude)${p}`);
+const DEFAULT_CONTEXT_CHARS = 6_000;
+const DIFF_CAPTURE_LIMIT = 512 * 1024;
+const LARGE_FILE_THRESHOLD = 200;
 
-export const getStagedFiles = (): string[] => {
-  const args = [
-    "diff",
-    "--cached",
-    "--name-only",
-    "--diff-algorithm=minimal",
-    ...excludeArgs,
-  ];
-  const { stdout } = spawnSync("git", args, { encoding: "utf8" });
-  if (!stdout) return [];
-  return stdout.split("\n").filter(Boolean);
-};
+type FileStat = { file: string; additions: number; deletions: number; total: number };
 
-export const getDiffSummary = (): string => {
-  try {
-    const args = [
-      "diff",
-      "--cached",
-      "--numstat",
-      "--diff-algorithm=minimal",
-      ...excludeArgs,
-    ];
-    const { stdout } = spawnSync("git", args, { encoding: "utf8" });
-    if (!stdout) return "";
+const excludeArgs = BASE_EXCLUDE_PATTERNS.map((pattern) => `:(exclude)${pattern}`);
+const pathspecs = (excludes: readonly string[] = []) => [
+  ...excludeArgs,
+  ...excludes.map((pattern) => `:(exclude)${pattern}`),
+];
 
-    const stats = stdout
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => {
-        const [add, del, file] = line.split("\t");
-        return {
-          file,
-          additions: Number(add) || 0,
-          deletions: Number(del) || 0,
-          total: (Number(add) || 0) + (Number(del) || 0),
-        };
-      });
-
-    const totalFiles = stats.length;
-    const totalAdditions = stats.reduce((s, f) => s + f.additions, 0);
-    const totalDeletions = stats.reduce((s, f) => s + f.deletions, 0);
-    const totalChanges = stats.reduce((s, f) => s + f.total, 0);
-    const top = stats.sort((a, b) => b.total - a.total).slice(0, 10);
-
-    const lines: string[] = [
-      `Files changed: ${totalFiles}`,
-      `Additions: ${totalAdditions}, Deletions: ${totalDeletions}, Total changes: ${totalChanges}`,
-      "",
-      "Top modified files:",
-      ...top.map(
-        (f) => `- ${f.file} (+${f.additions}/-${f.deletions}, ${f.total} changes)`
-      ),
-    ];
-
-    return lines.join("\n");
-  } catch (err) {
-    console.error("Error in getDiffSummary:", err);
-    return "";
-  }
-};
-
-export const buildDiffSnippets = (files: string[], perFileMaxLines = 25, totalMaxChars = 4000): string => {
-  try {
-    const targetFiles = files.slice(0, 5);
-    const parts: string[] = [];
-    let remaining = totalMaxChars;
-
-    for (const f of targetFiles) {
-      const stdout = execSync(`git diff --cached --unified=0 -- "${f}"`, { encoding: "utf8" });
-      if (!stdout) continue;
-
-      const lines = stdout.split("\n").filter(Boolean);
-      const picked: string[] = [];
-      let count = 0;
-
-      for (const line of lines) {
-        const isHunk = line.startsWith("@@");
-        const isChange =
-          (line.startsWith("+") || line.startsWith("-")) &&
-          !line.startsWith("+++") &&
-          !line.startsWith("---");
-        if (isHunk || isChange) {
-          picked.push(line);
-          count++;
-          if (count >= perFileMaxLines) break;
-        }
-      }
-
-      if (picked.length > 0) {
-        const block = [`# ${f}`, ...picked].join("\n");
-        if (block.length <= remaining) {
-          parts.push(block);
-          remaining -= block.length;
-        } else {
-          parts.push(block.slice(0, remaining));
-          remaining = 0;
-        }
-      }
-
-      if (remaining <= 0) break;
+function parseNumstat(output: string): FileStat[] {
+  const records = output.split("\0");
+  const stats: FileStat[] = [];
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    if (!record) continue;
+    const firstTab = record.indexOf("\t");
+    const secondTab = record.indexOf("\t", firstTab + 1);
+    if (firstTab < 0 || secondTab < 0) continue;
+    const add = record.slice(0, firstTab);
+    const del = record.slice(firstTab + 1, secondTab);
+    let file = record.slice(secondTab + 1);
+    if (!file) {
+      const oldPath = records[index + 1] || "";
+      file = records[index + 2] || oldPath;
+      index += 2;
     }
-
-    if (parts.length === 0) return "";
-    return ["Context snippets (truncated):", ...parts].join("\n");
-  } catch {
-    return "";
+    const additions = Number(add) || 0;
+    const deletions = Number(del) || 0;
+    stats.push({ file, additions, deletions, total: additions + deletions });
   }
+  return stats;
+}
+
+export const getStagedFiles = (cwd = process.cwd(), excludes: readonly string[] = []): string[] => {
+  const result = runGit(
+    ["diff", "--cached", "--name-only", "-z", "--diff-algorithm=minimal", "--", ...pathspecs(excludes)],
+    { cwd, allowFailure: true, maxOutputBytes: DIFF_CAPTURE_LIMIT },
+  );
+  return result.stdout.split("\0").filter(Boolean);
 };
 
-export const buildEnhancedDiffContext = (): string => {
-  const files = getStagedFiles();
+export const getDiffStats = (cwd = process.cwd(), excludes: readonly string[] = []): FileStat[] => {
+  const result = runGit(
+    ["diff", "--cached", "--numstat", "-z", "--diff-algorithm=minimal", "--", ...pathspecs(excludes)],
+    { cwd, allowFailure: true, maxOutputBytes: DIFF_CAPTURE_LIMIT },
+  );
+  return parseNumstat(result.stdout);
+};
 
-  const LARGE_FILE_THRESHOLD = 200;
+function summarize(stats: readonly FileStat[]): string {
+  if (!stats.length) return "";
+  const additions = stats.reduce((sum, file) => sum + file.additions, 0);
+  const deletions = stats.reduce((sum, file) => sum + file.deletions, 0);
+  const top = [...stats].sort((a, b) => b.total - a.total).slice(0, 10);
+  return [
+    `Files changed: ${stats.length}`,
+    `Additions: ${additions}, Deletions: ${deletions}, Total changes: ${additions + deletions}`,
+    "",
+    "Top modified files:",
+    ...top.map((file) => `- ${file.file} (+${file.additions}/-${file.deletions}, ${file.total} changes)`),
+  ].join("\n");
+}
+
+export const getDiffSummary = (cwd = process.cwd(), excludes: readonly string[] = []): string =>
+  summarize(getDiffStats(cwd, excludes));
+
+export const buildDiffSnippets = (
+  files: readonly string[],
+  perFileMaxLines = 25,
+  totalMaxChars = 4_000,
+  cwd = process.cwd(),
+): string => {
+  if (!files.length || totalMaxChars <= 0) return "";
+  const result = runGit(
+    ["diff", "--cached", "--unified=0", "--no-ext-diff", "--", ...files.slice(0, 5)],
+    { cwd, allowFailure: true, maxOutputBytes: DIFF_CAPTURE_LIMIT },
+  );
+  if (!result.stdout) return "";
+
+  const selected: string[] = [];
+  const lineCounts = new Map<string, number>();
+  let currentFile = "";
+  for (const line of result.stdout.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      currentFile = line;
+      selected.push(line);
+      continue;
+    }
+    const isHeader = line.startsWith("--- ") || line.startsWith("+++ ") || line.startsWith("@@");
+    const isChange = (line.startsWith("+") || line.startsWith("-")) && !line.startsWith("+++") && !line.startsWith("---");
+    if (!isHeader && !isChange) continue;
+    const count = lineCounts.get(currentFile) || 0;
+    if (isChange && count >= perFileMaxLines) continue;
+    if (isChange) lineCounts.set(currentFile, count + 1);
+    selected.push(line);
+  }
+
+  const text = selected.join("\n").slice(0, totalMaxChars);
+  return text ? `Context snippets (truncated):\n${text}` : "";
+};
+
+export const buildEnhancedDiffContext = (
+  maxChars = DEFAULT_CONTEXT_CHARS,
+  cwd = process.cwd(),
+  excludes: readonly string[] = [],
+): string => {
+  const files = getStagedFiles(cwd, excludes);
+  if (!files.length) return "";
+  const stats = getDiffStats(cwd, excludes);
+  const summary = summarize(stats) || `Files changed: ${files.length}`;
+  const rankedFiles = [...stats].sort((a, b) => b.total - a.total).map((item) => item.file);
+
   if (files.length > LARGE_FILE_THRESHOLD) {
-    const summary = getDiffSummary();
-
     return [
       "CHANGES SUMMARY (large diff mode):",
-      summary || "(no summary available)",
+      summary,
       "",
-      `Diff too large (${files.length} files). Detailed snippets were skipped.`,
-      "Only summary is included to avoid performance issues.",
-    ].join("\n");
+      `Detailed snippets skipped because ${files.length} files are staged.`,
+    ].join("\n").slice(0, maxChars);
   }
 
-  const summary = getDiffSummary();
-  const snippets = buildDiffSnippets(files);
-
-  let final = "";
-
-  if (summary) final += `CHANGES SUMMARY:\n${summary}\n\n`;
-  if (snippets) final += `CODE CONTEXT:\n${snippets}\n\n`;
-
-  if (!final.trim()) {
-    try {
-      const fallback = execSync("git diff --cached --unified=3", {
-        encoding: "utf8",
-        maxBuffer: 10 * 1024 * 1024
-      });
-      final = `FULL DIFF (fallback):\n${fallback}`;
-    } catch {
-      final = "Unable to produce diff.";
-    }
-  }
-
-  return final.trim();
+  const snippets = buildDiffSnippets(
+    rankedFiles.length ? rankedFiles : files,
+    25,
+    Math.max(0, maxChars - summary.length - 40),
+    cwd,
+  );
+  return [`CHANGES SUMMARY:\n${summary}`, snippets && `CODE CONTEXT:\n${snippets}`]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, maxChars);
 };
-

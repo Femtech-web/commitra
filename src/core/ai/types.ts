@@ -21,5 +21,5 @@ export type AIClientOptions = {
 
 export interface AIClient {
   provider: string;
-  chat: (messages: ChatMessage[], options?: { max_tokens?: number; n?: number; temperature?: number, type?: "readme" | "commit" }) => Promise<ChatCompletionResponse>;
+  chat: (messages: ChatMessage[], options?: { max_tokens?: number; n?: number; temperature?: number; type?: "readme" | "commit" }) => Promise<ChatCompletionResponse>;
 }

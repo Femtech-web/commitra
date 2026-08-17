@@ -1,52 +1,33 @@
-import type { AIClient, ChatMessage, ChatCompletionResponse } from '../types';
-import type { AIClientOptions } from '../types';
-import { AbortController } from 'node-abort-controller';
+import type { AIClient, AIClientOptions, ChatCompletionResponse, ChatMessage } from "../types.js";
 
-export function openaiClientFactory(apiKey: string, opts?: AIClientOptions): AIClient {
-  if (!apiKey) {
-    throw new Error('OpenAI API key is required');
-  }
-
-  // lazy import so the package is optional at runtime
-  // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-unsafe-assignment
-  const { OpenAI } = require('openai');
-
-  const client = new OpenAI({ apiKey });
+export function openaiClientFactory(apiKey: string, opts: AIClientOptions = {}): AIClient {
+  if (!apiKey) throw new Error("OpenAI API key is required");
+  let clientPromise: Promise<InstanceType<(typeof import("openai"))["default"]>> | undefined;
+  const getClient = () => clientPromise ??= import("openai").then(({ default: OpenAI }) => new OpenAI({ apiKey, timeout: opts.timeout }));
 
   return {
-    provider: 'openai',
-    async chat(messages, options = {}) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), opts?.timeout ?? 10000);
-
-      try {
-        const messagesForApi = messages.map((m: ChatMessage) => ({ role: m.role, content: m.content }));
-
-        const completion = await client.chat.completions.create({
-          model: opts?.model ?? options?.max_tokens ? 'gpt-4o' : 'gpt-4o',
-          messages: messagesForApi,
-          temperature: options?.temperature ?? 0.2,
-          max_tokens: options?.max_tokens ?? Math.max(200, 12 * (options?.max_tokens ?? 150)),
-          n: options?.n ?? 1,
-          signal: controller.signal as any,
-        });
-
-        const choices = (completion.choices || []).map((c: any) => ({
-          message: {
-            role: c.message.role,
-            content: c.message.content,
-          },
-          finish_reason: c.finish_reason ?? null,
-        }));
-
-        return {
-          id: (completion as any).id,
-          choices,
-          usage: (completion as any).usage,
-        } as ChatCompletionResponse;
-      } finally {
-        clearTimeout(timer);
-      }
+    provider: "openai",
+    async chat(messages: ChatMessage[], options = {}): Promise<ChatCompletionResponse> {
+      const client = await getClient();
+      const completion = await client.chat.completions.create({
+        model: opts.model || "gpt-4o-mini",
+        messages,
+        temperature: options.temperature ?? 0.2,
+        max_completion_tokens: options.max_tokens ?? 500,
+        n: options.n ?? 1,
+      });
+      return {
+        id: completion.id,
+        choices: completion.choices.map((choice) => ({
+          message: { role: "assistant", content: choice.message.content || "" },
+          finish_reason: choice.finish_reason,
+        })),
+        usage: completion.usage ? {
+          prompt_tokens: completion.usage.prompt_tokens,
+          completion_tokens: completion.usage.completion_tokens,
+          total_tokens: completion.usage.total_tokens,
+        } : undefined,
+      };
     },
   };
 }

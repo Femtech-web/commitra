@@ -31,23 +31,29 @@ function isExcluded(p: string) {
 export function detectAPIRoutes(root: string, language: string): string[] {
   const hints = API_PATH_HINTS[language.toLowerCase()] ?? [];
   const found: string[] = [];
+  const visited = new Set<string>();
 
   // Priority scan of Known API directories
   for (const hint of hints) {
     const full = path.join(root, hint);
     if (fs.existsSync(full) && !isExcluded(full)) {
-      collectRoutes(full, found, root);
+      collectRoutes(full, found, root, visited);
     }
   }
 
   if (found.length === 0) {
-    scanAllForApi(root, found, root);
+    scanAllForApi(root, found, root, visited);
   }
 
   return Array.from(new Set(found));
 }
 
-function scanAllForApi(dir: string, output: string[], base: string) {
+function scanAllForApi(dir: string, output: string[], base: string, visited: Set<string>) {
+  if (output.length >= 500) return;
+  let real: string;
+  try { real = fs.realpathSync(dir); } catch { return; }
+  if (visited.has(real)) return;
+  visited.add(real);
   const name = path.basename(dir);
 
   // Skip excluded dirs 
@@ -66,10 +72,12 @@ function scanAllForApi(dir: string, output: string[], base: string) {
 
     if (isExcluded(full)) continue;
 
-    const stat = fs.statSync(full);
+    let stat: fs.Stats;
+    try { stat = fs.lstatSync(full); } catch { continue; }
+    if (stat.isSymbolicLink()) continue;
 
     if (stat.isDirectory()) {
-      scanAllForApi(full, output, base);
+      scanAllForApi(full, output, base, visited);
       continue;
     }
 
@@ -85,7 +93,12 @@ function scanAllForApi(dir: string, output: string[], base: string) {
   }
 }
 
-function collectRoutes(dir: string, output: string[], base: string) {
+function collectRoutes(dir: string, output: string[], base: string, visited: Set<string>) {
+  if (output.length >= 500) return;
+  let real: string;
+  try { real = fs.realpathSync(dir); } catch { return; }
+  if (visited.has(real)) return;
+  visited.add(real);
   if (EXCLUDED_DIRS.has(path.basename(dir)) || isExcluded(dir)) return;
 
   let items: string[] = [];
@@ -101,10 +114,12 @@ function collectRoutes(dir: string, output: string[], base: string) {
 
     if (isExcluded(full)) continue;
 
-    const stat = fs.statSync(full);
+    let stat: fs.Stats;
+    try { stat = fs.lstatSync(full); } catch { continue; }
+    if (stat.isSymbolicLink()) continue;
 
     if (stat.isDirectory()) {
-      collectRoutes(full, output, base);
+      collectRoutes(full, output, base, visited);
     } else {
       if (API_FILE_REGEX.some((r) => r.test(item))) {
         output.push(cleanRoutePath(full, base));
@@ -205,4 +220,3 @@ export const API_FILE_REGEX = [
   /^api\.(ts|js)$/i,
   /endpoint\.(ts|js|py)$/i,
 ];
-
