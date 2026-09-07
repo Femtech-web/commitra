@@ -9,6 +9,17 @@ const keyNames: Partial<Record<Provider, string>> = {
   anthropic: "ANTHROPIC_API_KEY",
 };
 
+export function validateLocalModelUrl(value: string): string | undefined {
+  try {
+    const parsed = new URL(value.trim());
+    if (!["http:", "https:"].includes(parsed.protocol)) return "Use an HTTP(S) URL.";
+    if (parsed.username || parsed.password) return "Do not embed credentials in the URL.";
+    return undefined;
+  } catch {
+    return "Enter a valid URL.";
+  }
+}
+
 export async function runSetup(): Promise<void> {
   intro(chalk.bgBlueBright.black(" Commitra setup "));
   const provider = await select<Provider>({
@@ -29,12 +40,13 @@ export async function runSetup(): Promise<void> {
   if (model.trim()) config.model = model.trim(); else delete config.model;
 
   if (provider === "local") {
-    const url = await text({ message: "Local model URL", initialValue: "http://127.0.0.1:11434", validate: (value) => {
-      try { const parsed = new URL(value); return ["http:", "https:"].includes(parsed.protocol) ? undefined : "Use an HTTP(S) URL."; }
-      catch { return "Enter a valid URL."; }
-    } });
+    const url = await text({
+      message: "Local model URL",
+      initialValue: "http://127.0.0.1:11434",
+      validate: validateLocalModelUrl,
+    });
     if (isCancel(url)) return void outro("Setup cancelled.");
-    config.LOCAL_MODEL_URL = url;
+    config.LOCAL_MODEL_URL = url.trim();
   } else {
     delete config.LOCAL_MODEL_URL;
     const keyName = keyNames[provider]!;
